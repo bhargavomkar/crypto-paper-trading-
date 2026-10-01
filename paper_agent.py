@@ -2,6 +2,7 @@
 """Local, multi-asset paper-trading platform; no brokers, keys, or live orders."""
 from __future__ import annotations
 import argparse, json, math, random, threading, time
+from collections import deque
 from dataclasses import asdict, dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -20,27 +21,34 @@ class RiskLimits:
 
 @dataclass
 class Signal:
-    symbol: str; score: float; confidence: float; target_fraction: float; rationale: str
+    symbol: str; action: str; score: float; confidence: float; target_fraction: float; rationale: str; model_version: str
 
 class MarketMonitorAgent:
     """Tracks synthetic market state; never accesses balances or submits trades."""
     name="Market Monitor"
     def __init__(self, assets: tuple[Asset,...], rng: random.Random):
         self.assets,self.rng=assets,rng; self.prices={a.symbol:a.price for a in assets}; self.fast=dict(self.prices); self.slow=dict(self.prices)
+        self.avg_gain={a.symbol:0.0 for a in assets}; self.avg_loss={a.symbol:0.0 for a in assets}; self.history={a.symbol:deque([a.price],maxlen=48) for a in assets}
     def tick(self):
         for a in self.assets:
-            p=self.prices[a.symbol]; p=max(a.price*.02,p*(1+self.rng.gauss(0,a.volatility)+.00004*(a.price/p-1))); self.prices[a.symbol]=p
+            previous=self.prices[a.symbol]; p=max(a.price*.02,previous*(1+self.rng.gauss(0,a.volatility)+.00004*(a.price/previous-1))); self.prices[a.symbol]=p
             self.fast[a.symbol]=.22*p+.78*self.fast[a.symbol]; self.slow[a.symbol]=.055*p+.945*self.slow[a.symbol]
+            change=(p/previous-1)*100; self.avg_gain[a.symbol]=.14*max(change,0)+.86*self.avg_gain[a.symbol]; self.avg_loss[a.symbol]=.14*max(-change,0)+.86*self.avg_loss[a.symbol]; self.history[a.symbol].append(p)
     def state(self): return [{"symbol":a.symbol,"name":a.name,"class":a.asset_class,"price":round(self.prices[a.symbol],4),"trend":round((self.fast[a.symbol]/self.slow[a.symbol]-1)*10000,2)} for a in self.assets]
 
 class AssetAnalysisAgent:
     """Analyzes every watched asset; outputs explainable proposals, not orders."""
-    name="Asset Analysis"
+    name="Algorithm Research"
+    model_version="ema-rsi-v1-paper"
     def analyse(self, monitor: MarketMonitorAgent):
         result=[]
         for a in monitor.assets:
-            score=max(-1,min(1,(monitor.fast[a.symbol]/monitor.slow[a.symbol]-1)*600)); confidence=min(.8,abs(score)*.75+.08)
-            result.append(Signal(a.symbol,score,confidence,score*.08*confidence,"fast/slow EMA momentum on synthetic ticks"))
+            momentum=(monitor.fast[a.symbol]/monitor.slow[a.symbol]-1)*600
+            rsi=100 if monitor.avg_loss[a.symbol]==0 else 100-100/(1+monitor.avg_gain[a.symbol]/monitor.avg_loss[a.symbol])
+            score=max(-1,min(1,.72*momentum+.28*((rsi-50)/50))); confidence=min(.8,abs(score)*.75+.08)
+            action="BUY" if score>.12 else "SELL" if score<-.12 else "HOLD"
+            target=score*.08*confidence if action=="BUY" else 0.0
+            result.append(Signal(a.symbol,action,score,confidence,target,f"EMA momentum + RSI={rsi:.1f}; synthetic data only",self.model_version))
         return result
 
 class PaperBroker:
@@ -102,8 +110,10 @@ class PaperPlatform:
             time.sleep(.25)
     def snapshot(self):
         with self.lock:
-            equity=self.broker.equity(self.monitor.prices); positions=[{"symbol":s,"quantity":round(q,7),"notional":round(q*self.monitor.prices[s],2)} for s,q in self.broker.positions.items()]
-            return {"allocation_usd":round(self.allocation,2),"cash_usd":round(self.broker.cash,2),"equity_usd":round(equity,2),"pnl_usd":round(equity-self.allocation,2),"pnl_pct":round((equity/self.allocation-1)*100,3),"drawdown_pct":round((equity/self.peak_equity-1)*100,3),"running":self.running,"halted":self.halted,"reason":self.reason,"limits":asdict(self.limits),"agents":[{"name":self.monitor.name,"job":"Tracks 12 simulated symbols; no portfolio access"},{"name":self.analysis.name,"job":"Scores each symbol; cannot submit orders"},{"name":self.risk.name,"job":"Approves, clips, or rejects simulated orders"}],"market":self.monitor.state(),"positions":positions,"trades":self.broker.trades[-16:],"history":self.history[-120:]}
+            equity=self.broker.equity(self.monitor.prices)
+            positions=[{"symbol":s,"quantity":round(q,7),"notional":round(q*self.monitor.prices[s],2)} for s,q in self.broker.positions.items()]
+            signals=[asdict(signal) for signal in self.analysis.analyse(self.monitor)]
+            return {"allocation_usd":round(self.allocation,2),"cash_usd":round(self.broker.cash,2),"equity_usd":round(equity,2),"pnl_usd":round(equity-self.allocation,2),"pnl_pct":round((equity/self.allocation-1)*100,3),"drawdown_pct":round((equity/self.peak_equity-1)*100,3),"running":self.running,"halted":self.halted,"reason":self.reason,"limits":asdict(self.limits),"agents":[{"name":self.monitor.name,"job":"Tracks 12 simulated symbols; no portfolio access"},{"name":self.analysis.name,"job":"Sends BUY/SELL/HOLD proposals; cannot submit orders"},{"name":self.risk.name,"job":"Approves, clips, or rejects simulated orders"}],"market":self.monitor.state(),"signals":signals,"positions":positions,"trades":self.broker.trades[-16:],"history":self.history[-120:]}
 
 APP,ROOT=PaperPlatform(),Path(__file__).parent
 class Handler(BaseHTTPRequestHandler):

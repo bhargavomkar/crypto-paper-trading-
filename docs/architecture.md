@@ -3,7 +3,7 @@
 ## Authority boundaries
 
 ```text
-Market Monitor -> Asset Analysis -> Portfolio & Risk -> Paper Broker -> Ledger/UI
+Market Monitor -> Algorithm Research -> Portfolio & Risk -> Paper Broker -> Ledger/UI
        |                 |                  |                 |
   observations only   proposals only    approve/clip/reject  simulated fills only
 ```

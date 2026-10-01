@@ -2,7 +2,7 @@
 
 ## What I am building
 
-I am building a safe, local-first foundation for an autonomous multi-asset quant paper-trading platform: I set a paper allocation, internal market-monitoring, asset-analysis, and portfolio-risk agents turn defined signals into simulated trades, and risk controls can stop and flatten the portfolio automatically. The immediate goal is to validate the workflow, controls, and observability before considering any live-market integration.
+I am building a safe, local-first foundation for an autonomous multi-asset quant paper-trading platform: I set a paper allocation, internal market-monitoring, algorithm-research, and portfolio-risk agents turn defined signals into simulated trades, and risk controls can stop and flatten the portfolio automatically. The immediate goal is to validate the workflow, controls, and observability before considering any live-market integration.
 
 Allocate simulated USD, then start a local event-driven multi-asset paper-trading platform. The dashboard runs at `http://127.0.0.1:8787` and requires only Python 3.
 
@@ -17,7 +17,7 @@ The allocation is **not** a deposit and nothing can be traded live. The platform
 
 - Watchlist: BTC, ETH, SOL; EUR/USD, GBP/USD, USD/JPY; gold, silver, WTI crude; SPY, QQQ, and Apple. The architecture supports more symbols but does not claim coverage of every instrument.
 - **Market Monitor Agent** tracks simulated crypto, FX, commodity, and equity observations. It cannot access the allocation or submit orders.
-- **Asset Analysis Agent** analyzes each watched instrument with an explainable, bounded momentum signal. It produces proposals only.
+- **Algorithm Research Agent** combines EMA momentum with an RSI-style measure and sends versioned BUY/SELL/HOLD proposals for every watched instrument. It produces proposals only; these are simulated research outputs, not investing advice.
 - **Portfolio & Risk Agent** is the sole approval gate. It clips or rejects proposals under exposure limits before the paper broker can simulate a fill.
 
 Built-in controls: 12% maximum per asset, 30% maximum per asset class, 55% gross exposure cap, 4% maximum trade size, 3% loss stop, 5% drawdown kill switch, simulated fees/slippage, and stop-and-flatten.

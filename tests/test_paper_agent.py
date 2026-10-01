@@ -12,6 +12,14 @@ class PaperPlatformTests(unittest.TestCase):
         classes = {asset["class"] for asset in platform.snapshot()["market"]}
         self.assertEqual(classes, {"Crypto", "FX", "Commodity", "Equity"})
 
+    def test_algorithm_research_emits_versioned_actions(self):
+        platform = PaperPlatform(1_000)
+        platform.monitor.tick()
+        signals = platform.snapshot()["signals"]
+        self.assertEqual(len(signals), 12)
+        self.assertTrue(all(signal["action"] in {"BUY", "SELL", "HOLD"} for signal in signals))
+        self.assertTrue(all(signal["model_version"] == "ema-rsi-v1-paper" for signal in signals))
+
     def test_analysis_and_risk_create_only_long_capped_positions(self):
         platform = PaperPlatform(10_000)
         platform.monitor.tick()
