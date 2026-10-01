@@ -25,3 +25,5 @@ Built-in controls: 12% maximum per asset, 30% maximum per asset class, 55% gross
 ## Production-readiness boundary
 
 "HFT" is a specialized production discipline involving co-location, exchange-specific connectivity, queue-position models, regulated-broker controls, audited market data, order-state recovery, monitoring, and compliance. This repository is a safe learning/paper-trading prototype, not production HFT, a live-investment service, or investment advice. A real deployment requires licensed/legal review, data and broker agreements, independent risk controls, security review, comprehensive backtesting, forward paper trading, and explicit human approval for any live trading.
+
+See [the architecture notes](docs/architecture.md) for the authority model and the production-oriented roadmap.
