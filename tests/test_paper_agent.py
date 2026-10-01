@@ -34,9 +34,19 @@ class PaperPlatformTests(unittest.TestCase):
     def test_stop_flattens_paper_positions(self):
         platform = PaperPlatform(10_000)
         platform.broker.positions["BTC-USD"] = .01
+        platform.broker.avg_cost["BTC-USD"] = platform.monitor.prices["BTC-USD"]
         platform.broker.cash -= .01 * platform.monitor.prices["BTC-USD"]
         platform.stop()
         self.assertEqual(platform.broker.positions, {})
+
+    def test_profile_exposes_paper_pnl_and_candles(self):
+        platform = PaperPlatform(10_000)
+        for _ in range(8):
+            platform.monitor.tick()
+        snapshot = platform.snapshot()
+        self.assertEqual(snapshot["profile"]["mode"], "SIMULATED · NO REAL FUNDS")
+        self.assertTrue(snapshot["candles"]["BTC-USD"])
+        self.assertEqual(len(snapshot["asset_pnl"]), 12)
 
 
 if __name__ == "__main__":
